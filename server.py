@@ -8,7 +8,9 @@ app = Flask(__name__)
 lifx = LifxLAN()
 
 load_dotenv()
-NAMES = os.getenv("NAMES").split(",")
+HOST = os.getenv("HOST", "127.0.0.1")
+PORT = int(os.getenv("PORT", 5000))
+NAMES = os.getenv("NAMES", "").split(",")
 
 # [hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (2500-9000)]
 COLORS = {
@@ -48,4 +50,4 @@ async def warm_dim():
     return "Done"
 
 
-app.run()
+app.run(host=HOST, port=PORT)
