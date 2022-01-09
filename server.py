@@ -1,130 +1,114 @@
-from flask import Flask
-from dotenv import load_dotenv
-from lifxlan import LifxLAN, Light
-import os
-import asyncio
+from flask import Flask, request, jsonify
+from lifxlan import LifxLAN
+import traceback
 import waitress
-import subprocess
-import re
+
+from config import *
+from middleware import *
+from helpers import *
 
 app = Flask(__name__)
 lifx = LifxLAN()
 
-load_dotenv()
-DEVICES = os.getenv("DEVICES", "").split(",")
-PRODUCTION = os.getenv("PRODUCTION", "false") == "true"
-HOST = os.getenv("HOST", "0.0.0.0")
-PORT = int(os.getenv("PORT", "5439"))
-URL_PREFIX = os.getenv("URL_PREFIX", "")
-WIFI = os.getenv("WIFI")
 
-# color parameter format is 4 numbers separated by decimal points
-# hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (1500-9000)
-# colors:
-# warm_dim = (6007, 49151, 20971, 3500)
-color_regex = re.compile(r"^\d{1,5}\.\d{1,5}\.\d{1,5}\.\d{4}$")
-INVALID_COLOR_MSG = "Please provide 4 numbers separated by periods: hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (1500-9000)"
-
-INVALID_DEVICE_ID_MSG = f"Valid IDs are 0-{len(DEVICES) - 1}"
+def json_success(status_code=200, **data):
+    return jsonify(success=True, **data), status_code
 
 
-def ensure_wifi_connected():
-    # if provided wi-fi, try to connect
-    if WIFI and WIFI not in subprocess.check_output(
-            "netsh wlan show interfaces"
-    ).decode("utf-8"):
-        print(f"Not connected to {WIFI}. Connecting...")
-        subprocess.run(f'netsh wlan connect name="{WIFI}" ssid="{WIFI}"')
+def json_error(error, status_code=400):
+    return jsonify(success=False, error=error), status_code
 
 
-def get_light_for_device_str(device):
-    [mac, ip] = device.split("-")
-    return Light(mac, ip)
-
-
-async def set_light(light, color):
-    try:
-        # dont do rapid so we can catch error
-        light.set_power(True)
-        light.set_color(color, 500, rapid=True)
-        return True
-    except:
-        return False
-
-
-async def set_devices_and_return_missing(devices, color):
-    print(f"Trying to set {devices} to {color}...")
-
-    lights = [get_light_for_device_str(d) for d in devices]
-    results = await asyncio.gather(*[set_light(l, color) for l in lights])
-
-    success = [d for d, r in zip(devices, results) if r]
-    missing = [d for d, r in zip(devices, results) if not r]
-    if len(success) > 0:
-        print(f"Success: {success}")
-    if len(missing) > 0:
-        print(f"Missing: {missing}")
-    print()
-
-    return missing
-
-
-@app.route("/get/<device_id_str>")
-async def get_color(device_id_str):
-    if not re.match(r"^\d+$", device_id_str):
-        return INVALID_DEVICE_ID_MSG
-
-    device_id = int(device_id_str)
-    if device_id < 0 or device_id >= len(DEVICES):
-        return INVALID_DEVICE_ID_MSG
+@app.route("/<device_id_str>/<key>", methods=["GET"])
+async def device_get(device_id_str, key):
+    params, validation_error = validate_many(
+        (valid_device_id, (device_id_str,)),
+        (valid_key, (key,)),
+    )
+    if validation_error:
+        return json_error(validation_error)
+    [device_id, key] = params
 
     ensure_wifi_connected()
 
-    device = get_light_for_device_str(DEVICES[device_id])
+    device = DEVICES[device_id]
+    light = get_light_for_device_str(device)
     try:
-        return ".".join(map(str, device.get_color()))
-    except:
-        return f"Failed to retrieve color for {DEVICES[device_id]}"
+        value = None
+        if key == "color":
+            value = ".".join(map(str, light.get_color()))
+        elif key == "power":
+            value = "on" if light.get_power() else "off"
+        else:
+            # should never happen
+            raise json_error(f"{key} not implemented")
+
+        return json_success(**{key: value})
+    except Exception as err:
+        print(f"Failed to get {key} for {device}")
+        print(err)
+        traceback.print_exc()
+        return json_error(str(err))
 
 
-@app.route("/color/<color_str>")
-async def set_color(color_str):
-    if not color_regex.match(color_str):
-        return INVALID_COLOR_MSG
-
-    color = tuple(int(c) for c in color_str.split("."))
-    if (
-            color[0] > 65535
-            or color[1] > 65535
-            or color[2] > 65535
-            or color[3] < 1500
-            or color[3] > 9000
-    ):
-        return INVALID_COLOR_MSG
+@app.route("/<device_id_str>/<key>", methods=["POST"])
+async def device_post(device_id_str, key):
+    params, validation_error = validate_many(
+        (valid_device_id, (device_id_str,)),
+        (valid_key, (key,)),
+    )
+    if validation_error:
+        return json_error(validation_error)
+    [device_id, key] = params
 
     ensure_wifi_connected()
 
-    print()
-    missing = await set_devices_and_return_missing(DEVICES, color)
+    device = DEVICES[device_id]
+    if key == "color":
+        color, validation_error = valid_color(request.json.get("color"))
+        if validation_error:
+            return json_error(validation_error)
 
-    if len(missing) > 0:
-        # try to set color to missing lights 10 times
-        for _ in range(10):
-            missing = await set_devices_and_return_missing(
-                missing,
-                color,
-            )
+        try:
+            await set_devices_color_persistently([device], color)
+            return json_success()
+        except Exception as err:
+            print(f"Failed to set color = {color} for {device}")
+            print(err)
+            traceback.print_exc()
+            return json_error(str(err))
+    elif key == "power":
+        power, validation_error = valid_power(request.json.get("power"))
+        if validation_error:
+            return json_error(validation_error)
 
-            if len(missing) == 0:
-                print(f"All devices set to {color}")
-                break
-            await asyncio.sleep(5)
+        try:
+            get_light_for_device_str(device).set_power(power)
+            return json_success()
+        except Exception as err:
+            print(f"Failed to set power = {power} for {device}")
+            print(err)
+            traceback.print_exc()
+            return json_error(str(err))
 
-    if len(missing) > 0:
-        print(f"Could not set {missing} to {color}")
-        print()
+    # should never happen
+    return json_error(f"{key} not implemented")
 
-    return "Done"
+
+@app.route("/color", methods=["POST"])
+async def all_color():
+    color, validation_error = valid_color(request.json.get("color"))
+    if validation_error:
+        return json_error(validation_error)
+
+    ensure_wifi_connected()
+
+    missing = await set_devices_color_persistently(DEVICES, color)
+
+    if len(missing) == len(DEVICES):
+        return json_error("No lights online")
+    # missing = list of device IDs that were not set
+    return json_success(missing=list(map(DEVICES.index, missing)))
 
 
 if __name__ == "__main__":
