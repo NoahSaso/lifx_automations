@@ -25,6 +25,22 @@ WIFI = os.getenv("WIFI")
 color_regex = re.compile(r"^\d{1,5}\.\d{1,5}\.\d{1,5}\.\d{4}$")
 INVALID_COLOR_MSG = "Please provide 4 numbers separated by periods: hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (1500-9000)"
 
+INVALID_DEVICE_ID_MSG = f"Valid IDs are 0-{len(DEVICES)-1}"
+
+
+def ensure_wifi_connected():
+    # if provided wi-fi, try to connect
+    if WIFI and WIFI not in subprocess.check_output(
+        "netsh wlan show interfaces"
+    ).decode("utf-8"):
+        print(f"Not connected to {WIFI}. Connecting...")
+        subprocess.run(f'netsh wlan connect name="{WIFI}" ssid="{WIFI}"')
+
+
+def get_light_for_device_str(device):
+    [mac, ip] = device.split("-")
+    return Light(mac, ip)
+
 
 async def set_light(light, color):
     try:
@@ -39,11 +55,7 @@ async def set_light(light, color):
 async def set_devices_and_return_missing(devices, color):
     print(f"Trying to set {devices} to {color}...")
 
-    lights = []
-    for device in devices:
-        [mac, ip] = device.split("-")
-        lights.append(Light(mac, ip))
-
+    lights = [get_light_for_device_str(d) for d in devices]
     results = await asyncio.gather(*[set_light(l, color) for l in lights])
 
     success = [d for d, r in zip(devices, results) if r]
@@ -57,13 +69,22 @@ async def set_devices_and_return_missing(devices, color):
     return missing
 
 
-@app.route("/get/<name>")
-async def get_color(name):
-    device = lifx.get_device_by_name(name)
-    if not device:
-        return f"Device named {name} not found"
+@app.route("/get/<device_id_str>")
+async def get_color(device_id_str):
+    if not re.match(r"^\d+$", device_id_str):
+        return INVALID_DEVICE_ID_MSG
 
-    return ".".join(map(str, device.get_color()))
+    device_id = int(device_id_str)
+    if device_id < 0 or device_id >= len(DEVICES):
+        return INVALID_DEVICE_ID_MSG
+
+    ensure_wifi_connected()
+
+    device = get_light_for_device_str(DEVICES[device_id])
+    try:
+        return ".".join(map(str, device.get_color()))
+    except:
+        return f"Failed to retrieve color for {DEVICES[device_id]}"
 
 
 @app.route("/color/<color_str>")
@@ -81,12 +102,7 @@ async def set_color(color_str):
     ):
         return INVALID_COLOR_MSG
 
-    # if provided wi-fi, try to connect
-    if WIFI and WIFI not in subprocess.check_output(
-        "netsh wlan show interfaces"
-    ).decode("utf-8"):
-        print(f"Not connected to {WIFI}. Connecting...")
-        subprocess.run(f'netsh wlan connect name="{WIFI}" ssid="{WIFI}"')
+    ensure_wifi_connected()
 
     print()
     missing = await set_devices_and_return_missing(DEVICES, color)
