@@ -1,2 +1,2 @@
 # lifx_automations
-Auomations to make my life easier with lifx bulbs
+Automations to make my life easier with lifx bulbs
