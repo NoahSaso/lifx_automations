@@ -61,9 +61,13 @@ async def warm_dim():
     return "Done"
 
 
+def prod():
+    print(f"Launching in production mode on {HOST}:{PORT}...")
+    waitress.serve(app, host=HOST, port=PORT)
+
+
 if __name__ == "__main__":
     if PRODUCTION:
-        print(f"Launching in production mode on {HOST}:{PORT}...")
-        waitress.serve(app, host=HOST, port=PORT)
+        prod()
     else:
         app.run()
