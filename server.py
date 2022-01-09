@@ -25,13 +25,13 @@ WIFI = os.getenv("WIFI")
 color_regex = re.compile(r"^\d{1,5}\.\d{1,5}\.\d{1,5}\.\d{4}$")
 INVALID_COLOR_MSG = "Please provide 4 numbers separated by periods: hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (1500-9000)"
 
-INVALID_DEVICE_ID_MSG = f"Valid IDs are 0-{len(DEVICES)-1}"
+INVALID_DEVICE_ID_MSG = f"Valid IDs are 0-{len(DEVICES) - 1}"
 
 
 def ensure_wifi_connected():
     # if provided wi-fi, try to connect
     if WIFI and WIFI not in subprocess.check_output(
-        "netsh wlan show interfaces"
+            "netsh wlan show interfaces"
     ).decode("utf-8"):
         print(f"Not connected to {WIFI}. Connecting...")
         subprocess.run(f'netsh wlan connect name="{WIFI}" ssid="{WIFI}"')
@@ -94,11 +94,11 @@ async def set_color(color_str):
 
     color = tuple(int(c) for c in color_str.split("."))
     if (
-        color[0] > 65535
-        or color[1] > 65535
-        or color[2] > 65535
-        or color[3] < 1500
-        or color[3] > 9000
+            color[0] > 65535
+            or color[1] > 65535
+            or color[2] > 65535
+            or color[3] < 1500
+            or color[3] > 9000
     ):
         return INVALID_COLOR_MSG
 
