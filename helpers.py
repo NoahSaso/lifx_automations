@@ -4,9 +4,16 @@ from lifxlan import Light
 
 async def set_light_color(light, color):
     try:
-        # dont do rapid so we can catch error
         light.set_power(True)
         light.set_color(color, 1000)
+        return True
+    except:
+        return False
+
+
+async def set_light_power(light, power):
+    try:
+        light.set_power(power)
         return True
     except:
         return False

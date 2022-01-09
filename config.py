@@ -27,4 +27,5 @@ MESSAGES = {
     "INVALID_DEVICE_ID": f"Valid IDs are 0-{len(DEVICES) - 1}",
     "INVALID_KEY": f"Valid keys are {ALLOWED_KEYS}",
     "INVALID_POWER": f"Valid powers are {ALLOWED_POWERS}",
+    "GENERIC_FAILURE": "Failed to communicate with the light(s). Check the log for more details.",
 }
