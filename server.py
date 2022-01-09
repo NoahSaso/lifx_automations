@@ -19,10 +19,11 @@ URL_PREFIX = os.getenv("URL_PREFIX", "")
 WIFI = os.getenv("WIFI")
 
 # color parameter format is 4 numbers separated by decimal points
-# hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (2500-9000)
+# hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (1500-9000)
 # colors:
 # warm_dim = (6007, 49151, 20971, 3500)
 color_regex = re.compile(r"^\d{1,5}\.\d{1,5}\.\d{1,5}\.\d{4}$")
+INVALID_COLOR_MSG = "Please provide 4 numbers separated by periods: hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (1500-9000)"
 
 
 async def set_light(light, color):
@@ -59,14 +60,24 @@ async def set_devices_and_return_missing(devices, color):
 @app.route("/color/<color_str>")
 async def set_color(color_str):
     if not color_regex.match(color_str):
-        return "Please provide 4 numbers separated by periods: hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (2500-9000)"
+        return INVALID_COLOR_MSG
 
     color = tuple(int(c) for c in color_str.split("."))
+    if (
+        color[0] > 65535
+        or color[1] > 65535
+        or color[2] > 65535
+        or color[3] < 1500
+        or color[3] > 9000
+    ):
+        return INVALID_COLOR_MSG
 
     # if provided wi-fi, try to connect
-    if WIFI and WIFI not in subprocess.check_output("netsh wlan show interfaces").decode("utf-8"):
+    if WIFI and WIFI not in subprocess.check_output(
+        "netsh wlan show interfaces"
+    ).decode("utf-8"):
         print(f"Not connected to {WIFI}. Connecting...")
-        subprocess.run(f"netsh wlan connect name=\"{WIFI}\" ssid=\"{WIFI}\"")
+        subprocess.run(f'netsh wlan connect name="{WIFI}" ssid="{WIFI}"')
 
     print()
     missing = await set_devices_and_return_missing(DEVICES, color)
