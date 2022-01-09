@@ -6,7 +6,7 @@ Flask==2.0.2
 ifaddr==0.1.7
 itsdangerous==2.0.1
 Jinja2==3.0.3
-git+git://github.com/NoahSaso/lifxlan@432972b3ae15ebd60048357c96a8c8187e8a8152#egg=lifxlan
+git+git://github.com/NoahSaso/lifxlan@master#egg=lifxlan
 MarkupSafe==2.0.1
 mypy-extensions==0.4.3
 pathspec==0.9.0
