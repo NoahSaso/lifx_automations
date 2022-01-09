@@ -34,9 +34,9 @@ def set_them_lights_and_return_missing(names, color):
 async def warm_dim():
     missing_light_names = set_them_lights_and_return_missing(NAMES, COLORS["warm_dim"])
 
-    # try to set color to missing lights 10 times
-    for _ in range(10):
-        if len(missing_light_names) > 0:
+    if len(missing_light_names) > 0:
+        # try to set color to missing lights 10 times
+        for _ in range(10):
             missing_light_names = set_them_lights_and_return_missing(
                 missing_light_names, COLORS["warm_dim"]
             )
