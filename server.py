@@ -3,12 +3,16 @@ from dotenv import load_dotenv
 from lifxlan import LifxLAN, Light
 import os
 import asyncio
+import waitress
 
 app = Flask(__name__)
 lifx = LifxLAN()
 
 load_dotenv()
 DEVICES = os.getenv("DEVICES", "").split(",")
+PRODUCTION = os.getenv("PRODUCTION", "false") == "true"
+HOST = os.getenv("HOST", "0.0.0.0")
+PORT = int(os.getenv("PORT", "5439"))
 
 # [hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (2500-9000)]
 COLORS = {
@@ -58,4 +62,8 @@ async def warm_dim():
 
 
 if __name__ == "__main__":
-    app.run()
+    if PRODUCTION:
+        print(f"Launching in production mode on {HOST}:{PORT}...")
+        waitress.serve(app, host=HOST, port=PORT)
+    else:
+        app.run()
