@@ -11,7 +11,7 @@ import ctypes
 from server import prod
 
 logging.basicConfig(
-    filename=os.path.join(os.path.dirname(), "logs", "out.log"),
+    filename=os.path.join(os.path.dirname(__file__), "logs", "out.log"),
     level=logging.DEBUG,
     format="[lifx_automations] %(levelname)-7.7s %(message)s",
 )
