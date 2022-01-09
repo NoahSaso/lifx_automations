@@ -50,7 +50,7 @@ async def set_devices_color_persistently(devices, color):
 
     if len(missing) > 0:
         # try to set color to missing lights 10 times
-        for _ in range(1):
+        for _ in range(10):
             missing = await set_devices_color_and_return_missing(
                 missing,
                 color,
