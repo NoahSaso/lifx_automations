@@ -57,6 +57,15 @@ async def set_devices_and_return_missing(devices, color):
     return missing
 
 
+@app.route("/get/<name>")
+async def get_color(name):
+    device = lifx.get_device_by_name(name)
+    if not device:
+        return f"Device named {name} not found"
+
+    return ".".join(map(str, device.get_color()))
+
+
 @app.route("/color/<color_str>")
 async def set_color(color_str):
     if not color_regex.match(color_str):
