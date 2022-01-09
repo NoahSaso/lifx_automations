@@ -15,49 +15,66 @@ HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "5439"))
 URL_PREFIX = os.getenv("URL_PREFIX", "")
 
-# [hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (2500-9000)]
-COLORS = {
-    "warm_dim": (6007, 49151, 20971, 3500),
-}
+
+async def set_light(light, color):
+    try:
+        # dont do rapid so we can catch error
+        light.set_power(True)
+        light.set_color(color, 500, rapid=True)
+        return True
+    except:
+        return False
 
 
-def set_devices_and_return_missing(devices, color):
+async def set_devices_and_return_missing(devices, color):
     print(f"Trying to set {devices} to {color}...")
 
-    success = []
-    missing = []
+    lights = []
     for device in devices:
         [mac, ip] = device.split("-")
-        l = Light(mac, ip)
+        lights.append(Light(mac, ip))
 
-        try:
-            # dont do rapid so we can catch error
-            l.set_power(True)
-            l.set_color(color, rapid=True)
-            success.append(device)
-        except:
-            missing.append(device)
+    results = await asyncio.gather(*[set_light(l, color) for l in lights])
 
-    print(f"Set {success} to {color}")
+    success = [d for d, r in zip(devices, results) if r]
+    missing = [d for d, r in zip(devices, results) if not r]
+    if len(success) > 0:
+        print(f"Success: {success}")
+    if len(missing) > 0:
+        print(f"Missing: {missing}")
+    print()
 
     return missing
 
 
-@app.route("/warm_dim")
-async def warm_dim():
-    missing = set_devices_and_return_missing(DEVICES, COLORS["warm_dim"])
+# color parameter format is 4 numbers separated by decimal points
+# [hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (2500-9000)]
+# warm_dim = (6007, 49151, 20971, 3500)
+
+
+@app.route("/color/<color>")
+async def set_color(color):
+    color = tuple(int(c) for c in color.split("."))
+
+    print()
+    missing = await set_devices_and_return_missing(DEVICES, color)
 
     if len(missing) > 0:
         # try to set color to missing lights 10 times
         for _ in range(10):
-            missing = set_devices_and_return_missing(
+            missing = await set_devices_and_return_missing(
                 missing,
-                COLORS["warm_dim"],
+                color,
             )
 
             if len(missing) == 0:
+                print(f"All devices set to {color}")
                 break
             await asyncio.sleep(5)
+
+    if len(missing) > 0:
+        print(f"Could not set {missing} to {color}")
+        print()
 
     return "Done"
 
