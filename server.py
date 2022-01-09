@@ -2,14 +2,11 @@ from flask import Flask
 from dotenv import load_dotenv
 from lifxlan import LifxLAN, light
 import os
-import asyncio
 
 app = Flask(__name__)
 lifx = LifxLAN()
 
 load_dotenv()
-HOST = os.getenv("HOST", "127.0.0.1")
-PORT = int(os.getenv("PORT", 5000))
 NAMES = os.getenv("NAMES", "").split(",")
 
 # [hue (0-65535), saturation (0-65535), brightness (0-65535), Kelvin (2500-9000)]
@@ -50,4 +47,5 @@ async def warm_dim():
     return "Done"
 
 
-app.run(host=HOST, port=PORT)
+if __name__ == "__main__":
+    app.run()
